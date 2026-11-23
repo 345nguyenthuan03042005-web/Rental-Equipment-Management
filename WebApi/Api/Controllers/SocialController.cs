@@ -17,12 +17,15 @@ public class SocialController : BaseController
     private readonly SocialLogin social;
     private readonly IMemoryCache cache;
     private readonly IConfiguration configuration;
+    private readonly ILogger<SocialController> logger;
 
-    public SocialController(SocialLogin social, IMemoryCache cache, IConfiguration configuration)
+    public SocialController(SocialLogin social, IMemoryCache cache, IConfiguration configuration,
+        ILogger<SocialController> logger)
     {
         this.social = social;
         this.cache = cache;
         this.configuration = configuration;
+        this.logger = logger;
     }
 
     [HttpGet]
@@ -81,6 +84,9 @@ public class SocialController : BaseController
         catch (Exception ex) when (ex is HttpRequestException or JsonException or KeyNotFoundException
             or InvalidOperationException or TaskCanceledException)
         {
+            if (ex is not HttpRequestException { StatusCode: not null })
+                logger.LogWarning("Social login {Provider} could not complete the callback ({ErrorType}).",
+                    provider, ex.GetType().Name);
             member = null;
         }
         finally
@@ -92,6 +98,11 @@ public class SocialController : BaseController
                     attempt.CompletionCode = RandomNumberGenerator.GetInt32(100000000).ToString("D8");
                 attempt.Finished = true;
             }
+        }
+        if (string.IsNullOrEmpty(code))
+        {
+            logger.LogInformation("Social login {Provider} returned without an authorization code.", provider);
+            return Content("Chưa cấp quyền đăng nhập. Hãy quay lại ứng dụng để thử lại.", "text/plain; charset=utf-8");
         }
         return Content(attempt.MemberId == null ? "Đăng nhập chưa thành công. Hãy quay lại ứng dụng." :
             $"Nhập mã {attempt.CompletionCode} vào ứng dụng để hoàn tất đăng nhập.", "text/plain; charset=utf-8");

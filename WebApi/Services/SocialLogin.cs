@@ -12,11 +12,13 @@ public class SocialLogin
 
     private readonly IConfiguration configuration;
     private readonly HttpClient client;
+    private readonly ILogger<SocialLogin> logger;
 
-    public SocialLogin(IConfiguration configuration, IHttpClientFactory factory)
+    public SocialLogin(IConfiguration configuration, IHttpClientFactory factory, ILogger<SocialLogin> logger)
     {
         this.configuration = configuration;
         client = factory.CreateClient("external");
+        this.logger = logger;
     }
 
     private string? Option(string provider, string name) => configuration[$"Social:{provider}:{name}"];
@@ -103,24 +105,41 @@ public class SocialLogin
         using (request)
         using (var response = await client.SendAsync(request))
         {
-            response.EnsureSuccessStatusCode();
+            EnsureProviderSuccess(provider, "token exchange", response);
             using var token = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
             string accessToken = token.RootElement.GetProperty("access_token").GetString()!;
             using var profile = new HttpRequestMessage(HttpMethod.Get, provider switch
             {
                 "google" => "https://openidconnect.googleapis.com/v1/userinfo",
-                "facebook" => $"https://graph.facebook.com/{FacebookVersion}/me?fields=id,name",
+                "facebook" => FacebookProfileUrl(accessToken),
                 _ => "https://graph.zalo.me/v2.0/me?fields=id,name"
             });
             if (provider == "zalo") profile.Headers.Add("access_token", accessToken);
             else profile.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
             using var result = await client.SendAsync(profile);
-            result.EnsureSuccessStatusCode();
+            EnsureProviderSuccess(provider, "profile lookup", result);
             using var json = JsonDocument.Parse(await result.Content.ReadAsStringAsync());
             var element = json.RootElement;
             string id = element.GetProperty(provider == "google" ? "sub" : "id").GetString()!;
             string name = element.TryGetProperty("name", out var field) ? field.GetString() ?? provider : provider;
             return (id, name);
         }
+    }
+
+    private string FacebookProfileUrl(string accessToken)
+    {
+        byte[] secret = Encoding.UTF8.GetBytes(Option("facebook", "ClientSecret")!);
+        byte[] token = Encoding.UTF8.GetBytes(accessToken);
+        string proof = Convert.ToHexString(HMACSHA256.HashData(secret, token)).ToLowerInvariant();
+        return QueryHelpers.AddQueryString($"https://graph.facebook.com/{FacebookVersion}/me?fields=id,name",
+            "appsecret_proof", proof);
+    }
+
+    private void EnsureProviderSuccess(string provider, string step, HttpResponseMessage response)
+    {
+        if (response.IsSuccessStatusCode) return;
+        logger.LogWarning("Social login {Provider} failed during {Step} with HTTP {StatusCode}.",
+            provider, step, (int)response.StatusCode);
+        response.EnsureSuccessStatusCode();
     }
 }
