@@ -4,6 +4,8 @@ RUN apt-get update \
     && rm -rf /var/lib/apt/lists/*
 RUN git clone --depth 1 --branch 3.47.4 https://github.com/flutter/flutter.git /opt/flutter
 ENV PATH="/opt/flutter/bin:${PATH}"
+# Render's builder cannot restore the original owners of Flutter's archives.
+ENV TAR_OPTIONS=--no-same-owner
 RUN flutter precache --web
 WORKDIR /src/flutter
 COPY rental_equipment_app/pubspec.yaml rental_equipment_app/pubspec.lock ./
