@@ -18,13 +18,15 @@ import 'package:rental_equipment_app/password_page.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   const useSameOrigin = bool.fromEnvironment('API_USE_SAME_ORIGIN');
-  final apiUrl = kIsWeb && useSameOrigin
-      ? Uri.base.origin
-      : const String.fromEnvironment('API_URL');
-  await dotenv.load(
-    fileName: ".env",
-    mergeWith: {if (apiUrl.isNotEmpty) 'API_URL': apiUrl},
-  );
+  if (kIsWeb && useSameOrigin) {
+    dotenv.loadFromString(envString: 'API_URL=${Uri.base.origin}');
+  } else {
+    const apiUrl = String.fromEnvironment('API_URL');
+    await dotenv.load(
+      fileName: ".env",
+      mergeWith: {if (apiUrl.isNotEmpty) 'API_URL': apiUrl},
+    );
+  }
   runApp(const MyApp());
 }
 
