@@ -1,0 +1,12 @@
+services:
+  - type: web
+    name: rental-equipment-management
+    runtime: docker
+    plan: free
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /
+    envVars:
+      - key: ConnectionStrings__RentalEquipmentManagement
+        sync: false
+      - key: Jwt__SecretKey
+        generateValue: true

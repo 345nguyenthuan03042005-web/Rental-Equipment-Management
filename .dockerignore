@@ -1,0 +1,16 @@
+.git
+/*.sql
+**/bin
+**/obj
+**/build
+**/.dart_tool
+**/.gradle
+**/ephemeral
+**/.flutter-plugins-dependencies
+**/.env
+**/appsettings*.json
+**/*.pfx
+**/*.pem
+**/*.jks
+**/*.keystore
+**/key.properties

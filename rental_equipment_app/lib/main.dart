@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:rental_equipment_app/app_theme.dart';
@@ -16,7 +17,10 @@ import 'package:rental_equipment_app/password_page.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  const apiUrl = String.fromEnvironment('API_URL');
+  const useSameOrigin = bool.fromEnvironment('API_USE_SAME_ORIGIN');
+  final apiUrl = kIsWeb && useSameOrigin
+      ? Uri.base.origin
+      : const String.fromEnvironment('API_URL');
   await dotenv.load(
     fileName: ".env",
     mergeWith: {if (apiUrl.isNotEmpty) 'API_URL': apiUrl},
