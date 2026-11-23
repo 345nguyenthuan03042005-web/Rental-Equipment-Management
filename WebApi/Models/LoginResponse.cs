@@ -1,0 +1,9 @@
+using Microsoft.Identity.Client;
+
+namespace WebApi.Models;
+public class LoginResponse
+{
+    public bool Success { get; set; }
+    public string? Token { get; set; }
+    public string Message { get; set; } = null!;
+}
