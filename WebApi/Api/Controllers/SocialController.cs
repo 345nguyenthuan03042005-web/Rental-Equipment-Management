@@ -57,6 +57,7 @@ public class SocialController : BaseController
         }
 
         Member? member = null;
+        string? failure = null;
         try
         {
             if (!string.IsNullOrEmpty(code))
@@ -81,13 +82,28 @@ public class SocialController : BaseController
                 }
             }
         }
-        catch (Exception ex) when (ex is HttpRequestException or JsonException or KeyNotFoundException
-            or InvalidOperationException or TaskCanceledException or Microsoft.EntityFrameworkCore.DbUpdateException
-            or Microsoft.Data.SqlClient.SqlException)
+        catch (SocialProviderException ex)
         {
-            if (ex is not HttpRequestException { StatusCode: not null })
-                logger.LogWarning("Social login {Provider} could not complete the callback ({ErrorType}).",
-                    provider, ex.GetType().Name);
+            failure = ex.Step == "token exchange"
+                ? "Nhà cung cấp từ chối đổi mã đăng nhập."
+                : "Nhà cung cấp từ chối truy xuất hồ sơ.";
+            if (ex.Code is int errorCode) failure += $" Mã lỗi {provider}: {errorCode}.";
+            if (provider == "zalo" && ex.Code == -501)
+                failure += " Zalo giới hạn truy xuất hồ sơ từ máy chủ có IP ngoài Việt Nam.";
+        }
+        catch (Exception ex) when (ex is Microsoft.EntityFrameworkCore.DbUpdateException or Microsoft.Data.SqlClient.SqlException)
+        {
+            logger.LogWarning("Social login {Provider} could not read or save the member ({ErrorType}).",
+                provider, ex.GetType().Name);
+            failure = "Máy chủ chưa đọc hoặc lưu được tài khoản đăng nhập.";
+            member = null;
+        }
+        catch (Exception ex) when (ex is HttpRequestException or JsonException or KeyNotFoundException
+            or InvalidOperationException or TaskCanceledException)
+        {
+            logger.LogWarning("Social login {Provider} could not complete the callback ({ErrorType}).",
+                provider, ex.GetType().Name);
+            failure = "Máy chủ chưa xử lý được phản hồi đăng nhập.";
             member = null;
         }
         finally
@@ -105,7 +121,8 @@ public class SocialController : BaseController
             logger.LogInformation("Social login {Provider} returned without an authorization code.", provider);
             return Content("Chưa cấp quyền đăng nhập. Hãy quay lại ứng dụng để thử lại.", "text/plain; charset=utf-8");
         }
-        return Content(attempt.MemberId == null ? "Đăng nhập chưa thành công. Hãy quay lại ứng dụng." :
+        return Content(attempt.MemberId == null ?
+            $"{failure ?? "Đăng nhập chưa thành công."} Hãy quay lại ứng dụng." :
             $"Nhập mã {attempt.CompletionCode} vào ứng dụng để hoàn tất đăng nhập.", "text/plain; charset=utf-8");
     }
 

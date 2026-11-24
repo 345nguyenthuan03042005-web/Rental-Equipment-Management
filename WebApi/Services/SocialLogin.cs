@@ -21,7 +21,7 @@ public class SocialLogin
         this.logger = logger;
     }
 
-    private string? Option(string provider, string name) => configuration[$"Social:{provider}:{name}"];
+    private string? Option(string provider, string name) => configuration[$"Social:{provider}:{name}"]?.Trim();
 
     public bool IsEnabled(string provider) => Providers.Contains(provider) &&
         !string.IsNullOrWhiteSpace(Option(provider, "ClientId")) &&
@@ -144,7 +144,7 @@ public class SocialLogin
         {
             logger.LogWarning("Social login {Provider} failed during {Step} with HTTP {StatusCode}.",
                 provider, step, (int)response.StatusCode);
-            throw new HttpRequestException("OAuth request failed.", null, response.StatusCode);
+            throw new SocialProviderException(step, null);
         }
 
         JsonElement error = default;
@@ -160,7 +160,7 @@ public class SocialLogin
         logger.LogWarning("Social login {Provider} failed during {Step}: HTTP {StatusCode}, code {Code}, subcode {Subcode}, reason {Reason}.",
             provider, step, (int)response.StatusCode, code, subcode, reason);
         body.Dispose();
-        throw new HttpRequestException("OAuth request failed.", null, response.StatusCode);
+        throw new SocialProviderException(step, code);
     }
 
     private static int? ErrorField(JsonElement error, string name) =>
@@ -168,4 +168,10 @@ public class SocialLogin
 
     private static int? ErrorNumber(JsonElement error) =>
         error.ValueKind == JsonValueKind.Number && error.TryGetInt32(out int value) ? value : null;
+}
+
+internal sealed class SocialProviderException(string step, int? code) : Exception
+{
+    public string Step { get; } = step;
+    public int? Code { get; } = code;
 }
