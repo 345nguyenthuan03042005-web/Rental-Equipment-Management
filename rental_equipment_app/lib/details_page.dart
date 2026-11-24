@@ -163,7 +163,7 @@ class _DetailsPageState extends State<DetailsPage> {
     final colors = Theme.of(context).colorScheme;
     return DecoratedBox(
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: Theme.of(context).scaffoldBackgroundColor,
         border: Border.all(color: colors.outlineVariant),
         borderRadius: BorderRadius.circular(13),
       ),
@@ -193,7 +193,9 @@ class _DetailsPageState extends State<DetailsPage> {
             children: [
               TextSpan(
                 text: formatPrice(item.price),
-                style: theme.textTheme.headlineSmall,
+                style: theme.textTheme.headlineSmall?.copyWith(
+                  color: theme.colorScheme.primary,
+                ),
               ),
               TextSpan(text: ' / ngày', style: theme.textTheme.bodyMedium),
             ],

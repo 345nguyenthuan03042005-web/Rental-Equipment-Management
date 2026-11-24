@@ -64,9 +64,8 @@ class _RegisterPageState extends State<RegisterPage> {
                 prefixIcon: Icon(Icons.mail_outline),
               ),
             ),
-            TextFormField(
+            PasswordField(
               controller: _passwordController,
-              obscureText: true,
               onFieldSubmitted: (_) => _register(),
               decoration: const InputDecoration(
                 labelText: 'Mật khẩu',

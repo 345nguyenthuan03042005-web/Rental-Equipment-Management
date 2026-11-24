@@ -3,6 +3,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:rental_equipment_app/category.dart';
 import 'package:rental_equipment_app/category_repository.dart';
 import 'package:rental_equipment_app/helper.dart';
+import 'package:rental_equipment_app/management_layout.dart';
 import 'package:rental_equipment_app/session_helper.dart';
 
 class CategoryPage extends StatefulWidget {
@@ -151,41 +152,60 @@ class _CategoryPageState extends State<CategoryPage> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: Text(widget.title)),
-      floatingActionButton: FloatingActionButton(
-        onPressed: _loading ? null : _onEdit,
-        tooltip: 'Thêm danh mục',
-        child: const Icon(Icons.add),
-      ),
-      body: _loading
-          ? const Center(child: CircularProgressIndicator())
-          : ListView.builder(
-              itemCount: _categories.length,
-              itemBuilder: (context, index) {
-                final item = _categories[index];
-                return ListTile(
-                  leading: categoryImage(item.icon),
-                  title: Text(item.name),
-                  subtitle: Text(item.title),
-                  trailing: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      IconButton(
-                        onPressed: () => _onEdit(item),
-                        tooltip: 'Sửa',
-                        icon: const Icon(Icons.edit),
-                      ),
-                      IconButton(
-                        onPressed: () => _onDelete(item),
-                        tooltip: 'Xóa',
-                        icon: const Icon(Icons.delete),
-                      ),
-                    ],
-                  ),
-                );
-              },
+    return ManagementScaffold(
+      title: widget.title,
+      route: '/admin/category',
+      body: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        spacing: 12,
+        children: [
+          Align(
+            alignment: Alignment.centerRight,
+            child: FilledButton.icon(
+              onPressed: _loading ? null : _onEdit,
+              icon: const Icon(Icons.add),
+              label: const Text('Thêm danh mục'),
             ),
+          ),
+          Expanded(
+            child: _loading
+                ? const Center(child: CircularProgressIndicator())
+                : ManagementTable(
+                    columns: const ['Danh mục', 'Tiêu đề'],
+                    itemCount: _categories.length,
+                    emptyLabel: 'Chưa có danh mục',
+                    rowBuilder: (index) {
+                      final item = _categories[index];
+                      return (
+                        cells: [
+                          RecordName(
+                            title: item.name,
+                            leading: categoryImage(item.icon),
+                          ),
+                          Text(
+                            item.title,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ],
+                        actions: [
+                          IconButton(
+                            onPressed: () => _onEdit(item),
+                            tooltip: 'Sửa',
+                            icon: const Icon(Icons.edit_outlined),
+                          ),
+                          IconButton(
+                            onPressed: () => _onDelete(item),
+                            tooltip: 'Xóa',
+                            icon: const Icon(Icons.delete_outline),
+                          ),
+                        ],
+                      );
+                    },
+                  ),
+          ),
+        ],
+      ),
     );
   }
 }

@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:rental_equipment_app/app_theme.dart';
 import 'package:rental_equipment_app/helper.dart';
+import 'package:rental_equipment_app/management_layout.dart';
 import 'package:rental_equipment_app/member.dart';
 import 'package:rental_equipment_app/member_repository.dart';
 import 'package:rental_equipment_app/session_helper.dart';
@@ -140,29 +142,52 @@ class _MemberPageState extends State<MemberPage> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: Text(widget.title)),
+    return ManagementScaffold(
+      title: widget.title,
+      route: '/admin/member',
       body: _loading
           ? const Center(child: CircularProgressIndicator())
-          : ListView.builder(
+          : ManagementTable(
+              columns: const ['Thành viên', 'Email', 'Vai trò', 'Trạng thái'],
               itemCount: _members.length,
-              itemBuilder: (context, index) {
+              emptyLabel: 'Chưa có thành viên',
+              rowBuilder: (index) {
                 final item = _members[index];
-                return ListTile(
-                  title: Text(
-                    [
-                      item.surname,
-                      item.givenName,
-                    ].whereType<String>().join(' ').trim(),
-                  ),
-                  subtitle: Text(
-                    '${item.email} · ${_roles[item.role] ?? ""}${item.isActive ? "" : " · Đã khóa"}',
-                  ),
-                  trailing: IconButton(
-                    onPressed: () => _onEdit(item),
-                    tooltip: 'Sửa thành viên',
-                    icon: const Icon(Icons.edit),
-                  ),
+                return (
+                  cells: [
+                    RecordName(
+                      title: [
+                        item.surname,
+                        item.givenName,
+                      ].whereType<String>().join(' ').trim(),
+                      leading: const CircleAvatar(
+                        radius: 16,
+                        backgroundColor: rentalLightBlue,
+                        foregroundColor: rentalBlue,
+                        child: Icon(Icons.person_outline, size: 18),
+                      ),
+                    ),
+                    Text(
+                      item.email,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    Text(_roles[item.role] ?? ''),
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: statusPill(
+                        item.isActive ? 'Đang hoạt động' : 'Đã khóa',
+                        item.isActive ? rentalSuccess : rentalDanger,
+                      ),
+                    ),
+                  ],
+                  actions: [
+                    IconButton(
+                      onPressed: () => _onEdit(item),
+                      tooltip: 'Sửa thành viên',
+                      icon: const Icon(Icons.edit_outlined),
+                    ),
+                  ],
                 );
               },
             ),

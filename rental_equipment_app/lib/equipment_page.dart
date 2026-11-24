@@ -5,6 +5,7 @@ import 'package:rental_equipment_app/category_repository.dart';
 import 'package:rental_equipment_app/equipment.dart';
 import 'package:rental_equipment_app/equipment_repository.dart';
 import 'package:rental_equipment_app/helper.dart';
+import 'package:rental_equipment_app/management_layout.dart';
 import 'package:rental_equipment_app/session_helper.dart';
 import 'package:rental_equipment_app/sub_category.dart';
 import 'package:rental_equipment_app/sub_category_repository.dart';
@@ -269,63 +270,102 @@ class _EquipmentPageState extends State<EquipmentPage> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: Text(widget.title)),
-      floatingActionButton: FloatingActionButton(
-        onPressed: _loading ? null : _onEdit,
-        tooltip: 'Thêm thiết bị',
-        child: const Icon(Icons.add),
-      ),
+    return ManagementScaffold(
+      title: widget.title,
+      route: '/admin/equipment',
       body: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        spacing: 12,
         children: [
-          DropdownButton<int>(
-            value: _categoryId ?? 0,
-            items: [
-              const DropdownMenuItem(value: 0, child: Text('Tất cả danh mục')),
-              for (final category in _categories)
-                DropdownMenuItem(
-                  value: category.id,
-                  child: Text(category.name),
+          Wrap(
+            spacing: 12,
+            runSpacing: 10,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            alignment: WrapAlignment.spaceBetween,
+            children: [
+              SizedBox(
+                width: 264,
+                child: DropdownButtonFormField<int>(
+                  key: ValueKey(_categoryId),
+                  initialValue: _categoryId ?? 0,
+                  isExpanded: true,
+                  decoration: const InputDecoration(
+                    labelText: 'Danh mục',
+                    prefixIcon: Icon(Icons.filter_list),
+                  ),
+                  items: [
+                    const DropdownMenuItem(
+                      value: 0,
+                      child: Text('Tất cả danh mục'),
+                    ),
+                    for (final category in _categories)
+                      DropdownMenuItem(
+                        value: category.id,
+                        child: Text(
+                          category.name,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                  ],
+                  onChanged: _loading
+                      ? null
+                      : (id) {
+                          _categoryId = id == 0 ? null : id;
+                          _loadEquipment(1);
+                        },
                 ),
+              ),
+              FilledButton.icon(
+                onPressed: _loading ? null : _onEdit,
+                icon: const Icon(Icons.add),
+                label: const Text('Thêm thiết bị'),
+              ),
             ],
-            onChanged: _loading
-                ? null
-                : (id) {
-                    _categoryId = id == 0 ? null : id;
-                    _loadEquipment(1);
-                  },
           ),
           Expanded(
             child: _loading
                 ? const Center(child: CircularProgressIndicator())
-                : _equipment.isEmpty
-                ? const Center(child: Text('Chưa có thiết bị'))
-                : ListView.builder(
+                : ManagementTable(
+                    columns: const [
+                      'Thiết bị',
+                      'Đơn vị',
+                      'Giá/ngày',
+                      'Tình trạng',
+                    ],
                     itemCount: _equipment.length,
-                    itemBuilder: (context, index) {
+                    emptyLabel: 'Chưa có thiết bị',
+                    rowBuilder: (index) {
                       final item = _equipment[index];
                       final rented = item.status == 'Đang cho thuê';
-                      return ListTile(
-                        leading: equipmentImage(item.imageUrl, size: 48),
-                        title: Text(item.name),
-                        subtitle: Text(
-                          '${item.unit ?? ""} · ${item.status ?? ""}',
-                        ),
-                        trailing: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            IconButton(
-                              onPressed: rented ? null : () => _onEdit(item),
-                              tooltip: 'Sửa',
-                              icon: const Icon(Icons.edit),
-                            ),
-                            IconButton(
-                              onPressed: rented ? null : () => _onDelete(item),
-                              tooltip: 'Xóa',
-                              icon: const Icon(Icons.delete),
-                            ),
-                          ],
-                        ),
+                      return (
+                        cells: [
+                          RecordName(
+                            title: item.name,
+                            leading: equipmentImage(item.imageUrl, size: 40),
+                          ),
+                          Text(
+                            item.unit ?? '',
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          Text(formatPrice(item.price)),
+                          Align(
+                            alignment: Alignment.centerLeft,
+                            child: equipmentStatus(item.status),
+                          ),
+                        ],
+                        actions: [
+                          IconButton(
+                            onPressed: rented ? null : () => _onEdit(item),
+                            tooltip: 'Sửa',
+                            icon: const Icon(Icons.edit_outlined),
+                          ),
+                          IconButton(
+                            onPressed: rented ? null : () => _onDelete(item),
+                            tooltip: 'Xóa',
+                            icon: const Icon(Icons.delete_outline),
+                          ),
+                        ],
                       );
                     },
                   ),

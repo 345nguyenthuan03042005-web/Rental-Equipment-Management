@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:rental_equipment_app/app_theme.dart';
 
 void showMessage(BuildContext context, String msg) {
   ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
@@ -17,25 +18,39 @@ String formatPrice(double price) {
 }
 
 Widget equipmentStatus(String? status) {
-  final (background, foreground) = switch (status) {
-    'Sẵn sàng' => (const Color(0xFFE3F0E7), const Color(0xFF245439)),
-    'Đang cho thuê' => (const Color(0xFFF6E9DB), const Color(0xFF743B1D)),
-    'Đang bảo trì' => (const Color(0xFFF5E1DB), const Color(0xFF7D3829)),
-    _ => (const Color(0xFFECEAE4), const Color(0xFF52534F)),
+  return statusPill(status ?? 'Chưa rõ tình trạng', switch (status) {
+    'Sẵn sàng' => rentalSuccess,
+    'Đang cho thuê' => rentalAccent,
+    'Đang bảo trì' => rentalWarning,
+    _ => const Color(0xFF64748B),
+  });
+}
+
+Widget rentalStatus(int id, String label) {
+  final color = switch (id) {
+    1 => rentalDanger,
+    2 => rentalWarning,
+    3 || 4 => rentalAccent,
+    5 => rentalSuccess,
+    _ => const Color(0xFF64748B),
   };
+  return statusPill(label, color);
+}
+
+Widget statusPill(String label, Color color) {
   return DecoratedBox(
     decoration: BoxDecoration(
-      color: background,
-      borderRadius: BorderRadius.circular(6),
+      color: color.withValues(alpha: .13),
+      borderRadius: BorderRadius.circular(20),
     ),
     child: Padding(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       child: Text(
-        status ?? 'Chưa rõ tình trạng',
+        label,
         maxLines: 1,
         overflow: TextOverflow.ellipsis,
         style: TextStyle(
-          color: foreground,
+          color: Color.lerp(color, Colors.black, .48),
           fontSize: 11,
           fontWeight: FontWeight.w700,
         ),
@@ -79,7 +94,10 @@ Widget pageButtons(int page, int lastPage, ValueChanged<int> onPage) {
         onPressed: page > 1 ? () => onPage(page - 1) : null,
         icon: const Icon(Icons.chevron_left),
       ),
-      Text('Trang $page/$lastPage'),
+      Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 8),
+        child: Text('Trang $page / $lastPage'),
+      ),
       IconButton(
         tooltip: 'Trang sau',
         onPressed: page < lastPage ? () => onPage(page + 1) : null,

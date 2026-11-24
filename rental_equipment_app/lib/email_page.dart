@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:rental_equipment_app/account_layout.dart';
 import 'package:rental_equipment_app/helper.dart';
 import 'package:rental_equipment_app/member_repository.dart';
@@ -18,7 +19,7 @@ class _EmailPageState extends State<EmailPage> {
   final _code = TextEditingController();
   final _password = TextEditingController();
   bool _sending = false;
-  bool _sent = false;
+  bool _requestAccepted = false;
 
   @override
   void dispose() {
@@ -36,12 +37,17 @@ class _EmailPageState extends State<EmailPage> {
     }
     setState(() => _sending = true);
     try {
-      final sent = await MemberRepository.sendEmailCode(email, widget.reset);
+      final accepted = await MemberRepository.sendEmailCode(
+        email,
+        widget.reset,
+      );
       if (!mounted) return;
-      if (sent) setState(() => _sent = true);
+      if (accepted) setState(() => _requestAccepted = true);
       showMessage(
         context,
-        sent ? 'Kiểm tra hộp thư để lấy mã xác thực.' : 'Không gửi được mã.',
+        accepted
+            ? 'Nếu địa chỉ đủ điều kiện, mã sẽ được gửi qua email. Hãy kiểm tra cả mục Spam.'
+            : 'Máy chủ không nhận yêu cầu gửi mã.',
       );
     } catch (error) {
       if (mounted) {
@@ -53,14 +59,14 @@ class _EmailPageState extends State<EmailPage> {
   }
 
   Future<void> _onSave() async {
-    final code = _code.text.trim();
+    final code = _code.text;
     final password = widget.reset ? _password.text : null;
-    if (!RegExp(r'^\d{8}$').hasMatch(code) ||
-        (password != null && password.length < 6)) {
-      showMessage(
-        context,
-        'Nhập mã 8 số và mật khẩu mới ít nhất 6 ký tự nếu đặt lại.',
-      );
+    if (code.length != 8) {
+      showMessage(context, 'Nhập đủ 8 chữ số, kể cả số 0 ở đầu.');
+      return;
+    }
+    if (password != null && password.length < 6) {
+      showMessage(context, 'Mật khẩu mới phải có ít nhất 6 ký tự.');
       return;
     }
     setState(() => _sending = true);
@@ -99,25 +105,28 @@ class _EmailPageState extends State<EmailPage> {
             controller: _email,
             keyboardType: TextInputType.emailAddress,
             enabled: !_sending,
-            onChanged: (_) => setState(() => _sent = false),
+            onChanged: (_) {
+              _code.clear();
+              setState(() => _requestAccepted = false);
+            },
             decoration: const InputDecoration(labelText: 'Email'),
           ),
           OutlinedButton(
             onPressed: _sending ? null : _send,
-            child: Text(_sent ? 'Gửi lại mã' : 'Gửi mã'),
+            child: Text(_requestAccepted ? 'Gửi lại mã' : 'Gửi mã'),
           ),
-          if (_sent) ...[
+          if (_requestAccepted) ...[
             TextField(
               controller: _code,
               keyboardType: TextInputType.number,
+              inputFormatters: [FilteringTextInputFormatter.digitsOnly],
               maxLength: 8,
               enabled: !_sending,
               decoration: const InputDecoration(labelText: 'Mã trong email'),
             ),
             if (widget.reset)
-              TextField(
+              PasswordField(
                 controller: _password,
-                obscureText: true,
                 enabled: !_sending,
                 decoration: const InputDecoration(labelText: 'Mật khẩu mới'),
               ),

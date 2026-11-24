@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:rental_equipment_app/account_layout.dart';
 import 'package:rental_equipment_app/email_page.dart';
 import 'package:rental_equipment_app/helper.dart';
@@ -63,12 +64,13 @@ class _LoginPageState extends State<LoginPage> {
             mainAxisSize: MainAxisSize.min,
             children: [
               const Text(
-                'Mở trang đăng nhập, rồi nhập mã được hiển thị trong trình duyệt.',
+                'Mở trang đăng nhập rồi nhập đủ 8 chữ số từ trình duyệt, kể cả số 0 ở đầu.',
               ),
               TextField(
                 keyboardType: TextInputType.number,
+                inputFormatters: [FilteringTextInputFormatter.digitsOnly],
                 maxLength: 8,
-                onChanged: (value) => code = value.trim(),
+                onChanged: (value) => code = value,
                 decoration: const InputDecoration(labelText: 'Mã xác nhận'),
               ),
             ],
@@ -93,7 +95,7 @@ class _LoginPageState extends State<LoginPage> {
             FilledButton(
               onPressed: () async {
                 if (!RegExp(r'^[0-9]{8}$').hasMatch(code)) {
-                  showMessage(context, 'Nhập mã 8 chữ số từ trình duyệt.');
+                  showMessage(context, 'Nhập đủ 8 chữ số, kể cả số 0 ở đầu.');
                   return;
                 }
                 try {
@@ -169,9 +171,8 @@ class _LoginPageState extends State<LoginPage> {
                 prefixIcon: Icon(Icons.mail_outline),
               ),
             ), // TextFormField
-            TextFormField(
+            PasswordField(
               controller: _passwordController,
-              obscureText: true,
               onFieldSubmitted: (_) => _login(),
               decoration: const InputDecoration(
                 labelText: 'Mật khẩu',

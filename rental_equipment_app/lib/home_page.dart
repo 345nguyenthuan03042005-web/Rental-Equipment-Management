@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:rental_equipment_app/app_theme.dart';
 import 'package:rental_equipment_app/helper.dart';
+import 'package:rental_equipment_app/management_layout.dart';
 import 'package:rental_equipment_app/cart_repository.dart';
 import 'package:rental_equipment_app/member_repository.dart';
 import 'package:rental_equipment_app/equipment.dart';
@@ -171,12 +172,24 @@ class _HomePageState extends State<HomePage> {
     _goToPage(1);
   }
 
+  void _selectManagement(String route) {
+    if (route == '/rental') {
+      _onRental();
+    } else if (route != '/') {
+      _onAdmin(route);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colors = theme.colorScheme;
-    final compact = MediaQuery.sizeOf(context).width < 560;
+    final screenWidth = MediaQuery.sizeOf(context).width;
+    final compact = screenWidth < 560;
+    final showSidebar = _isAdmin && screenWidth >= managementBreakpoint;
+    final showDrawer = _isAdmin && !showSidebar;
     return Scaffold(
+      drawer: showDrawer ? managementDrawer('/', _selectManagement) : null,
       appBar: AppBar(
         title: Row(
           children: [
@@ -229,16 +242,6 @@ class _HomePageState extends State<HomePage> {
             ),
           ] else ...[
             IconButton(
-              onPressed: _profile,
-              tooltip: 'Hồ sơ',
-              icon: const Icon(Icons.person_outline),
-            ),
-            IconButton(
-              onPressed: _logout,
-              tooltip: 'Đăng xuất',
-              icon: const Icon(Icons.logout),
-            ),
-            IconButton(
               onPressed: _onCart,
               tooltip: 'Giỏ thuê',
               icon: Badge(
@@ -247,136 +250,169 @@ class _HomePageState extends State<HomePage> {
                 child: const Icon(Icons.shopping_bag_outlined),
               ),
             ),
-            if (_isAdmin)
-              PopupMenuButton<String>(
-                tooltip: 'Quản trị',
-                onSelected: _onAdmin,
-                itemBuilder: (context) => const [
-                  PopupMenuItem(
-                    value: '/admin/category',
-                    child: Text('Danh mục'),
-                  ),
-                  PopupMenuItem(
-                    value: '/admin/equipment',
-                    child: Text('Thiết bị'),
-                  ),
-                  PopupMenuItem(
-                    value: '/admin/member',
-                    child: Text('Thành viên'),
-                  ),
-                ],
-              ),
             IconButton(
               onPressed: _onRental,
               tooltip: 'Phiếu thuê',
               icon: const Icon(Icons.receipt_long_outlined),
             ),
+            PopupMenuButton<String>(
+              tooltip: 'Tài khoản',
+              onSelected: (value) {
+                if (value == 'profile') {
+                  _profile();
+                } else {
+                  _logout();
+                }
+              },
+              itemBuilder: (context) => const [
+                PopupMenuItem(
+                  value: 'profile',
+                  child: ListTile(
+                    leading: Icon(Icons.person_outline),
+                    title: Text('Hồ sơ'),
+                  ),
+                ),
+                PopupMenuItem(
+                  value: 'logout',
+                  child: ListTile(
+                    leading: Icon(Icons.logout),
+                    title: Text('Đăng xuất'),
+                  ),
+                ),
+              ],
+              child: const Padding(
+                padding: EdgeInsets.all(6),
+                child: CircleAvatar(
+                  radius: 16,
+                  backgroundColor: rentalLightBlue,
+                  foregroundColor: rentalBlue,
+                  child: Icon(Icons.person_outline, size: 19),
+                ),
+              ),
+            ),
             const SizedBox(width: 8),
           ],
         ],
       ),
-      body: LayoutBuilder(
-        builder: (context, constraints) {
-          final margin = ((constraints.maxWidth - 1420) / 2).clamp(
-            16.0,
-            double.infinity,
-          );
-          final width = constraints.maxWidth - margin * 2;
-          final columns = switch (width) {
-            >= 1200 => 5,
-            >= 960 => 4,
-            >= 680 => 3,
-            >= 320 => 2,
-            _ => 1,
-          };
-          final wide = width >= 750;
-          return CustomScrollView(
-            controller: _scroll,
-            slivers: [
-              SliverPadding(
-                padding: EdgeInsets.fromLTRB(margin, 18, margin, 0),
-                sliver: SliverToBoxAdapter(child: _buildSearch(width)),
+      body: Row(
+        children: [
+          if (showSidebar)
+            SizedBox(
+              width: 228,
+              child: ManagementNavigation(
+                activeRoute: '/',
+                onSelected: _selectManagement,
               ),
-              SliverPadding(
-                padding: EdgeInsets.fromLTRB(margin, 14, margin, 16),
-                sliver: SliverToBoxAdapter(child: _buildFilters(wide)),
-              ),
-              SliverPadding(
-                padding: EdgeInsets.fromLTRB(margin, 0, margin, 10),
-                sliver: SliverToBoxAdapter(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Expanded(
-                            child: Text(
-                              _search.isNotEmpty
-                                  ? 'Kết quả tìm kiếm'
-                                  : _categoryId == null &&
-                                        _unit == null &&
-                                        _selected.isEmpty
-                                  ? 'Thiết bị mới nhất'
-                                  : 'Kết quả lọc',
-                              style: theme.textTheme.titleLarge,
-                            ),
-                          ),
-                          if (!_loading && _error == null)
-                            Text(
-                              '$_total thiết bị',
-                              style: TextStyle(color: colors.onSurfaceVariant),
-                            ),
-                        ],
-                      ),
-                      if (_offline)
-                        const Padding(
-                          padding: EdgeInsets.only(top: 6),
-                          child: Text(
-                            'Đang xem danh sách đã lưu trên điện thoại',
-                          ),
-                        ),
-                    ],
-                  ),
-                ),
-              ),
-              if (_loading || _error != null || _equipment.isEmpty)
-                SliverFillRemaining(
-                  hasScrollBody: false,
-                  child: Center(
-                    child: _loading
-                        ? const CircularProgressIndicator()
-                        : _error != null
-                        ? TextButton.icon(
-                            onPressed: _loadEquipment,
-                            icon: const Icon(Icons.refresh),
-                            label: Text('$_error. Thử lại'),
-                          )
-                        : const Text('Chưa có thiết bị phù hợp'),
-                  ),
-                )
-              else
-                SliverPadding(
-                  padding: EdgeInsets.fromLTRB(margin, 0, margin, 24),
-                  sliver: SliverGrid.builder(
-                    itemCount: _equipment.length,
-                    gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                      crossAxisCount: columns,
-                      mainAxisSpacing: 12,
-                      crossAxisSpacing: 12,
-                      mainAxisExtent: width < 450 ? 247 : 255,
+            ),
+          Expanded(
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                final margin = ((constraints.maxWidth - 1420) / 2).clamp(
+                  compact ? 12.0 : 20.0,
+                  double.infinity,
+                );
+                final width = constraints.maxWidth - margin * 2;
+                final columns = switch (width) {
+                  >= 1390 => 5,
+                  >= 1050 => 4,
+                  >= 680 => 3,
+                  >= 330 => 2,
+                  _ => 1,
+                };
+                final wide = width >= 750;
+                return CustomScrollView(
+                  controller: _scroll,
+                  slivers: [
+                    SliverPadding(
+                      padding: EdgeInsets.fromLTRB(margin, 18, margin, 0),
+                      sliver: SliverToBoxAdapter(child: _buildSearch(width)),
                     ),
-                    itemBuilder: (context, index) {
-                      final item = _equipment[index];
-                      return _EquipmentCard(
-                        item: item,
-                        onDetails: () => _onDetails(item.id),
-                      );
-                    },
-                  ),
-                ),
-            ],
-          );
-        },
+                    SliverPadding(
+                      padding: EdgeInsets.fromLTRB(margin, 14, margin, 16),
+                      sliver: SliverToBoxAdapter(child: _buildFilters(wide)),
+                    ),
+                    SliverPadding(
+                      padding: EdgeInsets.fromLTRB(margin, 0, margin, 10),
+                      sliver: SliverToBoxAdapter(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: Text(
+                                    _search.isNotEmpty
+                                        ? 'Kết quả tìm kiếm'
+                                        : _categoryId == null &&
+                                              _unit == null &&
+                                              _selected.isEmpty
+                                        ? 'Thiết bị mới nhất'
+                                        : 'Kết quả lọc',
+                                    style: theme.textTheme.titleLarge,
+                                  ),
+                                ),
+                                if (!_loading && _error == null)
+                                  Text(
+                                    '$_total thiết bị',
+                                    style: TextStyle(
+                                      color: colors.onSurfaceVariant,
+                                    ),
+                                  ),
+                              ],
+                            ),
+                            if (_offline)
+                              const Padding(
+                                padding: EdgeInsets.only(top: 6),
+                                child: Text(
+                                  'Đang xem danh sách đã lưu trên điện thoại',
+                                ),
+                              ),
+                          ],
+                        ),
+                      ),
+                    ),
+                    if (_loading || _error != null || _equipment.isEmpty)
+                      SliverFillRemaining(
+                        hasScrollBody: false,
+                        child: Center(
+                          child: _loading
+                              ? const CircularProgressIndicator()
+                              : _error != null
+                              ? TextButton.icon(
+                                  onPressed: _loadEquipment,
+                                  icon: const Icon(Icons.refresh),
+                                  label: Text('$_error. Thử lại'),
+                                )
+                              : const Text('Chưa có thiết bị phù hợp'),
+                        ),
+                      )
+                    else
+                      SliverPadding(
+                        padding: EdgeInsets.fromLTRB(margin, 0, margin, 24),
+                        sliver: SliverGrid.builder(
+                          itemCount: _equipment.length,
+                          gridDelegate:
+                              SliverGridDelegateWithFixedCrossAxisCount(
+                                crossAxisCount: columns,
+                                mainAxisSpacing: 14,
+                                crossAxisSpacing: 14,
+                                mainAxisExtent: width < 450 ? 252 : 277,
+                              ),
+                          itemBuilder: (context, index) {
+                            final item = _equipment[index];
+                            return _EquipmentCard(
+                              item: item,
+                              onDetails: () => _onDetails(item.id),
+                            );
+                          },
+                        ),
+                      ),
+                  ],
+                );
+              },
+            ),
+          ),
+        ],
       ),
       bottomNavigationBar: _error == null && _total > 0
           ? DecoratedBox(
@@ -399,7 +435,7 @@ class _HomePageState extends State<HomePage> {
 
   Widget _buildSearch(double width) {
     final wide = width >= 750;
-    const background = Color(0xFFF3E6D9);
+    const background = rentalNavy;
     final theme = Theme.of(context);
     return ClipRRect(
       borderRadius: BorderRadius.circular(18),
@@ -419,8 +455,12 @@ class _HomePageState extends State<HomePage> {
                     Text(
                       'Tìm thiết bị',
                       style: wide
-                          ? theme.textTheme.headlineMedium
-                          : theme.textTheme.headlineSmall,
+                          ? theme.textTheme.headlineMedium?.copyWith(
+                              color: Colors.white,
+                            )
+                          : theme.textTheme.headlineSmall?.copyWith(
+                              color: Colors.white,
+                            ),
                     ),
                     const SizedBox(height: 12),
                     TextField(
@@ -459,9 +499,9 @@ class _HomePageState extends State<HomePage> {
                           gradient: LinearGradient(
                             colors: [
                               background,
-                              background.withValues(alpha: 0),
+                              rentalBlue.withValues(alpha: .16),
                             ],
-                            stops: const [0, .24],
+                            stops: const [0, .62],
                           ),
                         ),
                       ),

@@ -124,14 +124,28 @@ class _RentalDetailsPageState extends State<RentalDetailsPage> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       spacing: 8,
                       children: [
-                        Text(
-                          'Phiếu #${rental.id} · ${formatDate(rental.dated)}',
-                          style: Theme.of(context).textTheme.titleLarge,
+                        Wrap(
+                          spacing: 12,
+                          runSpacing: 8,
+                          crossAxisAlignment: WrapCrossAlignment.center,
+                          children: [
+                            Text(
+                              'Phiếu #${rental.id}',
+                              style: Theme.of(context).textTheme.headlineSmall,
+                            ),
+                            rentalStatus(
+                              rental.statusId,
+                              _statuses[rental.statusId] ??
+                                  '${rental.statusId}',
+                            ),
+                          ],
                         ),
-                        Text(
-                          'Trạng thái: ${_statuses[rental.statusId] ?? rental.statusId}',
-                        ),
+                        Text('Ngày lập ${formatDate(rental.dated)}'),
                         const Divider(),
+                        Text(
+                          'Thiết bị thuê',
+                          style: Theme.of(context).textTheme.titleMedium,
+                        ),
                         for (final item in rental.details)
                           ListTile(
                             title: Text(item.name),
@@ -140,9 +154,15 @@ class _RentalDetailsPageState extends State<RentalDetailsPage> {
                             ),
                             trailing: Text(formatPrice(item.days * item.price)),
                           ),
-                        Text(
-                          'Tổng tiền: ${formatPrice(rental.details.fold<double>(0, (sum, item) => sum + item.days * item.price))}',
-                          style: Theme.of(context).textTheme.titleLarge,
+                        Align(
+                          alignment: Alignment.centerRight,
+                          child: Text(
+                            'Tổng tiền: ${formatPrice(rental.details.fold<double>(0, (sum, item) => sum + item.days * item.price))}',
+                            style: Theme.of(context).textTheme.titleLarge
+                                ?.copyWith(
+                                  color: Theme.of(context).colorScheme.primary,
+                                ),
+                          ),
                         ),
                         if (_methods.isNotEmpty || payment != null) ...[
                           const Divider(),

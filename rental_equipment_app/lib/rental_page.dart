@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:rental_equipment_app/helper.dart';
+import 'package:rental_equipment_app/management_layout.dart';
 import 'package:rental_equipment_app/member_repository.dart';
 import 'package:rental_equipment_app/rental.dart';
 import 'package:rental_equipment_app/rental_repository.dart';
@@ -98,30 +99,37 @@ class _RentalPageState extends State<RentalPage> {
   }
 
   Widget _loadListView(List<Rental> rentals) {
-    return ListView.builder(
+    return ManagementTable(
+      columns: const ['Mã phiếu', 'Ngày lập', 'Trạng thái'],
       itemCount: rentals.length,
-      itemBuilder: (context, index) {
+      emptyLabel: 'Chưa có phiếu thuê',
+      rowBuilder: (index) {
         final item = rentals[index];
-        return ListTile(
-          leading: Text('#${item.id}'),
-          title: Text(formatDate(item.dated)),
-          subtitle: Text(_statuses[item.statusId] ?? ''),
-          trailing: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              if (_nextStatuses(item.statusId).isNotEmpty)
-                IconButton(
-                  onPressed: _saving ? null : () => _onUpdate(item),
-                  icon: const Icon(Icons.edit),
-                  tooltip: 'Đổi trạng thái phiếu',
-                ),
-              IconButton(
-                onPressed: () => _onDetails(item),
-                icon: const Icon(Icons.details),
-                tooltip: 'Chi tiết phiếu',
+        return (
+          cells: [
+            RecordName(title: 'Phiếu #${item.id}'),
+            Text(formatDate(item.dated)),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: rentalStatus(
+                item.statusId,
+                _statuses[item.statusId] ?? '',
               ),
-            ],
-          ),
+            ),
+          ],
+          actions: [
+            if (_nextStatuses(item.statusId).isNotEmpty)
+              IconButton(
+                onPressed: _saving ? null : () => _onUpdate(item),
+                icon: const Icon(Icons.edit_outlined),
+                tooltip: 'Đổi trạng thái phiếu',
+              ),
+            IconButton(
+              onPressed: () => _onDetails(item),
+              icon: const Icon(Icons.receipt_long_outlined),
+              tooltip: 'Chi tiết phiếu',
+            ),
+          ],
         );
       },
     );
@@ -186,48 +194,60 @@ class _RentalPageState extends State<RentalPage> {
   @override
   Widget build(BuildContext context) {
     final rentals = _rentals;
-    return Scaffold(
-      appBar: AppBar(title: Text(widget.title)),
+    return ManagementScaffold(
+      title: widget.title,
+      route: '/rental',
+      showNavigation: _isAdmin,
       body: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        spacing: 12,
         children: [
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: TextField(
-              controller: _search,
-              keyboardType: TextInputType.number,
-              onSubmitted: (_) => _onSearch(),
-              decoration: InputDecoration(
-                labelText: 'Tìm theo mã phiếu thuê',
-                suffixIcon: IconButton(
-                  onPressed: _onSearch,
-                  tooltip: 'Tìm',
-                  icon: const Icon(Icons.search),
-                ),
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.all(12),
+              child: Wrap(
+                spacing: 12,
+                runSpacing: 8,
+                crossAxisAlignment: WrapCrossAlignment.center,
+                children: [
+                  SizedBox(
+                    width: 360,
+                    child: TextField(
+                      controller: _search,
+                      keyboardType: TextInputType.number,
+                      onSubmitted: (_) => _onSearch(),
+                      decoration: InputDecoration(
+                        labelText: 'Tìm theo mã phiếu thuê',
+                        suffixIcon: IconButton(
+                          onPressed: _onSearch,
+                          tooltip: 'Tìm',
+                          icon: const Icon(Icons.search),
+                        ),
+                      ),
+                    ),
+                  ),
+                  if (_isAdmin)
+                    OutlinedButton.icon(
+                      icon: const Icon(Icons.date_range),
+                      onPressed: _onDate,
+                      label: Text(
+                        _dates == null
+                            ? 'Lọc theo ngày'
+                            : '${formatDate(_dates!.start)} – ${formatDate(_dates!.end)}',
+                      ),
+                    ),
+                  if (_isAdmin && _dates != null)
+                    TextButton(
+                      onPressed: () {
+                        setState(() => _dates = null);
+                        _loadRentals();
+                      },
+                      child: const Text('Bỏ lọc'),
+                    ),
+                ],
               ),
             ),
           ),
-          if (_isAdmin)
-            Wrap(
-              children: [
-                TextButton.icon(
-                  icon: const Icon(Icons.date_range),
-                  onPressed: _onDate,
-                  label: Text(
-                    _dates == null
-                        ? 'Lọc theo ngày'
-                        : '${formatDate(_dates!.start)} – ${formatDate(_dates!.end)}',
-                  ),
-                ),
-                if (_dates != null)
-                  TextButton(
-                    onPressed: () {
-                      setState(() => _dates = null);
-                      _loadRentals();
-                    },
-                    child: const Text('Bỏ lọc'),
-                  ),
-              ],
-            ),
           Expanded(
             child: _error != null
                 ? Center(

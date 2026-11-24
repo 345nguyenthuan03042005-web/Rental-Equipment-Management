@@ -64,22 +64,19 @@ class _PasswordPageState extends State<PasswordPage> {
         key: _key,
         child: AccountLayout(
           children: [
-            TextFormField(
+            PasswordField(
               controller: _current,
-              obscureText: true,
               decoration: const InputDecoration(labelText: 'Mật khẩu hiện tại'),
               validator: (value) =>
                   (value ?? '').isEmpty ? 'Nhập mật khẩu hiện tại' : null,
             ),
-            TextFormField(
+            PasswordField(
               controller: _password,
-              obscureText: true,
               decoration: const InputDecoration(labelText: 'Mật khẩu mới'),
               validator: (value) =>
                   (value ?? '').length < 6 ? 'Cần ít nhất 6 ký tự' : null,
             ),
-            TextFormField(
-              obscureText: true,
+            PasswordField(
               decoration: const InputDecoration(
                 labelText: 'Nhập lại mật khẩu mới',
               ),

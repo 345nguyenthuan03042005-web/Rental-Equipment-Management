@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:rental_equipment_app/app_theme.dart';
 import 'package:rental_equipment_app/email_page.dart';
+import 'package:rental_equipment_app/helper.dart';
 import 'package:rental_equipment_app/member.dart';
 import 'package:rental_equipment_app/member_repository.dart';
 import 'package:rental_equipment_app/session_helper.dart';
@@ -35,6 +37,7 @@ class _ProfilePageState extends State<ProfilePage> {
   @override
   Widget build(BuildContext context) {
     final social = _member?.email.endsWith('@example.invalid') ?? false;
+    final theme = Theme.of(context);
     return Scaffold(
       appBar: AppBar(
         title: Text(widget.title),
@@ -63,30 +66,46 @@ class _ProfilePageState extends State<ProfilePage> {
       ),
       body: _member == null
           ? const Center(child: Text('Chưa tải được hồ sơ'))
-          : Table(
+          : PageContent(
+              maxWidth: 680,
               children: [
-                TableRow(
-                  children: [
-                    TableCell(child: Text('Email')),
-                    TableCell(
-                      child: Text(
-                        social
-                            ? 'Đăng nhập qua mạng xã hội'
-                            : _member!.emailVerified
-                            ? '${_member!.email} (đã xác thực)'
-                            : _member!.email,
-                      ),
+                Card(
+                  child: Padding(
+                    padding: const EdgeInsets.all(22),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      spacing: 12,
+                      children: [
+                        const CircleAvatar(
+                          radius: 24,
+                          backgroundColor: rentalLightBlue,
+                          foregroundColor: rentalBlue,
+                          child: Icon(Icons.person_outline),
+                        ),
+                        Text(
+                          _member!.givenName,
+                          style: theme.textTheme.headlineSmall,
+                        ),
+                        const Divider(),
+                        Text('Email', style: theme.textTheme.labelLarge),
+                        Text(
+                          social ? 'Đăng nhập qua mạng xã hội' : _member!.email,
+                        ),
+                        if (!social)
+                          statusPill(
+                            _member!.emailVerified
+                                ? 'Đã xác thực'
+                                : 'Chưa xác thực',
+                            _member!.emailVerified
+                                ? rentalSuccess
+                                : rentalWarning,
+                          ),
+                      ],
                     ),
-                  ],
-                ), // TableRow
-                TableRow(
-                  children: [
-                    TableCell(child: Text('Tên')),
-                    TableCell(child: Text(_member!.givenName)),
-                  ],
-                ), // TableRow
+                  ),
+                ),
               ],
-            ), // Table
-    ); // Scaffold
+            ),
+    );
   }
 }

@@ -85,6 +85,72 @@ class _CartPageState extends State<CartPage> {
     );
   }
 
+  Widget _loadCompactCart(BuildContext context) {
+    final theme = Theme.of(context);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        for (final item in _carts) ...[
+          if (item != _carts.first) const Divider(height: 1),
+          Padding(
+            padding: const EdgeInsets.all(14),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              spacing: 8,
+              children: [
+                Row(
+                  children: [
+                    equipmentImage(item.imageUrl, size: 44),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(item.name, style: theme.textTheme.titleSmall),
+                          if (item.unit != null) Text(item.unit!),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 4,
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  children: [
+                    equipmentStatus(item.status),
+                    Text('${item.quantity} ngày × ${formatPrice(item.price)}'),
+                    Text(
+                      formatPrice(item.price * item.quantity),
+                      style: theme.textTheme.titleSmall?.copyWith(
+                        color: theme.colorScheme.primary,
+                      ),
+                    ),
+                  ],
+                ),
+                Wrap(
+                  spacing: 6,
+                  children: [
+                    TextButton.icon(
+                      onPressed: _checkingOut ? null : () => _onUpdate(item),
+                      icon: const Icon(Icons.edit_outlined, size: 18),
+                      label: const Text('Sửa số ngày'),
+                    ),
+                    TextButton.icon(
+                      onPressed: _checkingOut ? null : () => _onDelete(item.id),
+                      icon: const Icon(Icons.delete_outline, size: 18),
+                      label: const Text('Xóa'),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+
   Future<void> _onUpdate(CartExt item) async {
     final key = GlobalKey<FormState>();
     int quantity = item.quantity;
@@ -200,16 +266,27 @@ class _CartPageState extends State<CartPage> {
               ),
             )
           else ...[
+            Padding(
+              padding: const EdgeInsets.only(bottom: 12),
+              child: Text(
+                'Thiết bị trong giỏ',
+                style: theme.textTheme.titleLarge,
+              ),
+            ),
             Card(
               clipBehavior: Clip.antiAlias,
               child: LayoutBuilder(
-                builder: (context, constraints) => SingleChildScrollView(
-                  scrollDirection: Axis.horizontal,
-                  child: ConstrainedBox(
-                    constraints: BoxConstraints(minWidth: constraints.maxWidth),
-                    child: _loadTable(),
-                  ),
-                ),
+                builder: (context, constraints) => constraints.maxWidth < 700
+                    ? _loadCompactCart(context)
+                    : SingleChildScrollView(
+                        scrollDirection: Axis.horizontal,
+                        child: ConstrainedBox(
+                          constraints: BoxConstraints(
+                            minWidth: constraints.maxWidth,
+                          ),
+                          child: _loadTable(),
+                        ),
+                      ),
               ),
             ),
             const SizedBox(height: 14),
@@ -217,15 +294,27 @@ class _CartPageState extends State<CartPage> {
               child: Padding(
                 padding: const EdgeInsets.all(16),
                 child: Wrap(
-                  runSpacing: 10,
-                  spacing: 22,
-                  alignment: WrapAlignment.end,
+                  spacing: 14,
+                  runSpacing: 12,
+                  alignment: WrapAlignment.spaceBetween,
                   crossAxisAlignment: WrapCrossAlignment.center,
                   children: [
-                    Text('Tổng tiền thuê', style: theme.textTheme.titleMedium),
-                    Text(
-                      formatPrice(total),
-                      style: theme.textTheme.headlineSmall,
+                    Wrap(
+                      runSpacing: 6,
+                      spacing: 16,
+                      crossAxisAlignment: WrapCrossAlignment.center,
+                      children: [
+                        Text(
+                          'Tổng tiền thuê',
+                          style: theme.textTheme.titleMedium,
+                        ),
+                        Text(
+                          formatPrice(total),
+                          style: theme.textTheme.headlineSmall?.copyWith(
+                            color: theme.colorScheme.primary,
+                          ),
+                        ),
+                      ],
                     ),
                     FilledButton.icon(
                       onPressed: _checkingOut ? null : _onCheckout,
