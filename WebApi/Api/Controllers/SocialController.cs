@@ -82,7 +82,8 @@ public class SocialController : BaseController
             }
         }
         catch (Exception ex) when (ex is HttpRequestException or JsonException or KeyNotFoundException
-            or InvalidOperationException or TaskCanceledException)
+            or InvalidOperationException or TaskCanceledException or Microsoft.EntityFrameworkCore.DbUpdateException
+            or Microsoft.Data.SqlClient.SqlException)
         {
             if (ex is not HttpRequestException { StatusCode: not null })
                 logger.LogWarning("Social login {Provider} could not complete the callback ({ErrorType}).",
@@ -134,7 +135,8 @@ public class SocialController : BaseController
         }
         cache.Remove(obj.State);
         var member = attempt.MemberId == null ? null : Provider.Member.GetMember(attempt.MemberId);
-        if (member is not { IsActive: true }) return BadRequest();
+        if (member is not { IsActive: true })
+            return UnprocessableEntity("Nhà cung cấp chưa xác thực được tài khoản.");
         return Ok(new { member.Email, token = Helper.GenerateToken(member, configuration) });
     }
 }

@@ -23,29 +23,32 @@ class MemberRepository {
   }
 
   static Future<LoginResponse?> login(Login obj) async {
-    String path = "${dotenv.env['API_URL']}/api/auth/login";
-    var response = await post(
-      Uri.parse(path),
-      headers: {'content-type': 'application/json'},
-      body: jsonEncode(obj.toMap()),
-    );
+    final response = await _accountPost('/auth/login', obj.toMap());
     if (response.statusCode == 200) {
       return LoginResponse.fromMap(jsonDecode(response.body));
     }
     return null;
   }
 
-  static Future<Member?> getMember(String token) async {
+  static Future<Member?> getMember(
+    String token, {
+    bool failOnServerError = false,
+  }) async {
     String path = "${dotenv.env['API_URL']}/api/auth";
-    var response = await http.get(
-      Uri.parse(path),
-      headers: {
-        'content-type': 'application/json',
-        'authorization': 'Bearer $token',
-      },
-    );
+    var response = await http
+        .get(
+          Uri.parse(path),
+          headers: {
+            'content-type': 'application/json',
+            'authorization': 'Bearer $token',
+          },
+        )
+        .timeout(_accountTimeout);
     if (response.statusCode == 200) {
       return Member.fromMap(jsonDecode(response.body));
+    }
+    if (failOnServerError && ![401, 403, 404].contains(response.statusCode)) {
+      throw Exception('Chưa tải được hồ sơ tài khoản.');
     }
     return null;
   }
@@ -124,7 +127,7 @@ class MemberRepository {
   static Future<List<String>> getSocialProviders() async {
     final response = await http
         .get(Uri.parse("${dotenv.env['API_URL']}/api/social"))
-        .timeout(const Duration(seconds: 5));
+        .timeout(_accountTimeout);
     if (response.statusCode != 200) {
       throw Exception('Không tải được cấu hình đăng nhập.');
     }
@@ -134,7 +137,11 @@ class MemberRepository {
   static Future<Map<String, dynamic>> startSocial(String provider) async {
     final response = await _accountPost('/social/$provider/start', {});
     if (response.statusCode != 200) {
-      throw Exception('Không mở được trang đăng nhập.');
+      throw Exception(switch (response.statusCode) {
+        404 => 'Phương thức đăng nhập này chưa được bật trên máy chủ.',
+        429 => 'Bạn thử quá nhiều lần. Hãy đợi một lát rồi thử lại.',
+        _ => 'Máy chủ chưa mở được trang đăng nhập. Hãy thử lại.',
+      });
     }
     return jsonDecode(response.body) as Map<String, dynamic>;
   }
@@ -151,21 +158,26 @@ class MemberRepository {
     });
     if (response.statusCode == 202) return null;
     if (response.statusCode != 200) {
-      throw Exception(
-        response.statusCode == 400
-            ? 'Mã xác nhận sai hoặc phiên đăng nhập đã bị hủy.'
-            : 'Đăng nhập đã hết hạn.',
-      );
+      throw Exception(switch (response.statusCode) {
+        400 => 'Mã xác nhận không đúng.',
+        404 => 'Phiên đăng nhập đã hết hạn. Hãy bắt đầu lại.',
+        422 => 'Nhà cung cấp chưa xác thực được tài khoản. Hãy bắt đầu lại.',
+        _ => 'Chưa kiểm tra được kết quả đăng nhập. Hãy thử lại.',
+      });
     }
     return jsonDecode(response.body) as Map<String, dynamic>;
   }
 
+  static const _accountTimeout = Duration(seconds: 75);
+
   static Future<http.Response> _accountPost(
     String route,
-    Map<String, String> body,
-  ) => http.post(
-    Uri.parse("${dotenv.env['API_URL']}/api$route"),
-    headers: {'content-type': 'application/json'},
-    body: jsonEncode(body),
-  );
+    Map<String, dynamic> body,
+  ) => http
+      .post(
+        Uri.parse("${dotenv.env['API_URL']}/api$route"),
+        headers: {'content-type': 'application/json'},
+        body: jsonEncode(body),
+      )
+      .timeout(_accountTimeout);
 }

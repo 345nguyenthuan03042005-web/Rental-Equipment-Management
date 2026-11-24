@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- Equipment case and carry handle. -->
+    <path
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="4.5"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:pathData="M45,40 V35 Q45,30 50,30 H58 Q63,30 63,35 V40 M36,40 H72 Q80,40 80,48 V71 Q80,79 72,79 H36 Q28,79 28,71 V48 Q28,40 36,40 Z M28,55 H43 M65,55 H80" />
+    <path
+        android:fillColor="#DBEAFE"
+        android:pathData="M51,50 H57 Q60,50 60,53 V57 Q60,60 57,60 H51 Q48,60 48,57 V53 Q48,50 51,50 Z" />
+</vector>

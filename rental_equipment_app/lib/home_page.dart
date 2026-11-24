@@ -149,7 +149,10 @@ class _HomePageState extends State<HomePage> {
     if (token == null) return;
 
     try {
-      final member = await MemberRepository.getMember(token);
+      final member = await MemberRepository.getMember(
+        token,
+        failOnServerError: true,
+      );
       if (await SessionHelper.token != token || !mounted) return;
       if (member == null) {
         await _logout();

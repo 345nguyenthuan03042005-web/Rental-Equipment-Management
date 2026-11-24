@@ -105,8 +105,7 @@ public class SocialLogin
         using (request)
         using (var response = await client.SendAsync(request))
         {
-            await EnsureProviderSuccess(provider, "token exchange", response);
-            using var token = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+            using var token = await ReadProviderJson(provider, "token exchange", response);
             string accessToken = token.RootElement.GetProperty("access_token").GetString()!;
             using var profile = new HttpRequestMessage(HttpMethod.Get, provider switch
             {
@@ -117,8 +116,7 @@ public class SocialLogin
             if (provider == "zalo") profile.Headers.Add("access_token", accessToken);
             else profile.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
             using var result = await client.SendAsync(profile);
-            await EnsureProviderSuccess(provider, "profile lookup", result);
-            using var json = JsonDocument.Parse(await result.Content.ReadAsStringAsync());
+            using var json = await ReadProviderJson(provider, "profile lookup", result);
             var element = json.RootElement;
             string id = element.GetProperty(provider == "google" ? "sub" : "id").GetString()!;
             string name = element.TryGetProperty("name", out var field) ? field.GetString() ?? provider : provider;
@@ -135,37 +133,39 @@ public class SocialLogin
             "appsecret_proof", proof);
     }
 
-    private async Task EnsureProviderSuccess(string provider, string step, HttpResponseMessage response)
+    private async Task<JsonDocument> ReadProviderJson(string provider, string step, HttpResponseMessage response)
     {
-        if (response.IsSuccessStatusCode) return;
-        if (provider == "facebook")
+        JsonDocument body;
+        try
         {
-            try
-            {
-                using var body = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
-                if (body.RootElement.ValueKind == JsonValueKind.Object &&
-                    body.RootElement.TryGetProperty("error", out var error) &&
-                    error.ValueKind == JsonValueKind.Object)
-                {
-                    int? code = FacebookErrorNumber(error, "code");
-                    int? subcode = FacebookErrorNumber(error, "error_subcode");
-                    logger.LogWarning("Facebook {Step} returned HTTP {StatusCode}, Graph code {Code}, subcode {Subcode}.",
-                        step, (int)response.StatusCode, code, subcode);
-                    response.EnsureSuccessStatusCode();
-                }
-            }
-            catch (JsonException)
-            {
-                // The HTTP status is enough when Meta returns a response without JSON.
-            }
+            body = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        }
+        catch (JsonException) when (!response.IsSuccessStatusCode)
+        {
+            logger.LogWarning("Social login {Provider} failed during {Step} with HTTP {StatusCode}.",
+                provider, step, (int)response.StatusCode);
+            throw new HttpRequestException("OAuth request failed.", null, response.StatusCode);
         }
 
-        logger.LogWarning("Social login {Provider} failed during {Step} with HTTP {StatusCode}.",
-            provider, step, (int)response.StatusCode);
-        response.EnsureSuccessStatusCode();
+        JsonElement error = default;
+        bool failed = body.RootElement.ValueKind == JsonValueKind.Object &&
+            body.RootElement.TryGetProperty("error", out error) &&
+            error.ValueKind is not (JsonValueKind.Null or JsonValueKind.False) && ErrorNumber(error) != 0;
+        if (response.IsSuccessStatusCode && !failed) return body;
+
+        int? code = error.ValueKind == JsonValueKind.Object ? ErrorField(error, "code") : ErrorNumber(error);
+        int? subcode = ErrorField(error, "error_subcode");
+        string? reason = error.ValueKind == JsonValueKind.String ? error.GetString() : null;
+        if (reason is not ("invalid_client" or "invalid_grant" or "invalid_request" or "access_denied")) reason = null;
+        logger.LogWarning("Social login {Provider} failed during {Step}: HTTP {StatusCode}, code {Code}, subcode {Subcode}, reason {Reason}.",
+            provider, step, (int)response.StatusCode, code, subcode, reason);
+        body.Dispose();
+        throw new HttpRequestException("OAuth request failed.", null, response.StatusCode);
     }
 
-    private static int? FacebookErrorNumber(JsonElement error, string name) =>
-        error.TryGetProperty(name, out var value) && value.ValueKind == JsonValueKind.Number &&
-        value.TryGetInt32(out int result) ? result : null;
+    private static int? ErrorField(JsonElement error, string name) =>
+        error.ValueKind == JsonValueKind.Object && error.TryGetProperty(name, out var field) ? ErrorNumber(field) : null;
+
+    private static int? ErrorNumber(JsonElement error) =>
+        error.ValueKind == JsonValueKind.Number && error.TryGetInt32(out int value) ? value : null;
 }

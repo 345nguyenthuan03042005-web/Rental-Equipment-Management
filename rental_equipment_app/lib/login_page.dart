@@ -1,3 +1,6 @@
+import 'dart:async';
+
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:rental_equipment_app/account_layout.dart';
@@ -20,6 +23,7 @@ class _LoginPageState extends State<LoginPage> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   String? _error;
+  bool _loggingIn = false;
   Future<List<String>>? _providerRequest;
   static const _names = {
     'google': 'Gmail',
@@ -82,11 +86,19 @@ class _LoginPageState extends State<LoginPage> {
             ),
             TextButton(
               onPressed: () async {
-                final opened = await launchUrl(
-                  Uri.parse(attempt['url']),
-                  mode: LaunchMode.externalApplication,
-                );
-                if (!opened && context.mounted) {
+                try {
+                  final opened = await launchUrl(
+                    Uri.parse(attempt['url']),
+                    mode: kIsWeb
+                        ? LaunchMode.platformDefault
+                        : LaunchMode.externalApplication,
+                    webOnlyWindowName: '_blank',
+                  );
+                  if (opened) return;
+                } on PlatformException {
+                  // The device can lack a browser that handles the sign-in link.
+                }
+                if (context.mounted) {
                   showMessage(context, 'Không mở được trình duyệt.');
                 }
               },
@@ -181,7 +193,7 @@ class _LoginPageState extends State<LoginPage> {
             ), // TextFormField
 
             FilledButton.icon(
-              onPressed: _login,
+              onPressed: _loggingIn ? null : _login,
               icon: const Icon(Icons.login),
               label: const Text('Đăng nhập'),
             ),
@@ -264,13 +276,25 @@ class _LoginPageState extends State<LoginPage> {
     );
   }
 
-  void _login() async {
-    String email = _emailController.text.trim();
-    var obj = Login(email: email, password: _passwordController.text);
-    LoginResponse? result = await MemberRepository.login(obj);
-    if (!mounted) return;
-    if (result != null) {
-      if (result.success) {
+  Future<void> _login() async {
+    if (_loggingIn) return;
+    final email = _emailController.text.trim();
+    final password = _passwordController.text;
+    if (email.isEmpty || password.isEmpty) {
+      setState(() => _error = 'Hãy nhập email và mật khẩu.');
+      return;
+    }
+
+    setState(() {
+      _loggingIn = true;
+      _error = null;
+    });
+    try {
+      LoginResponse? result = await MemberRepository.login(
+        Login(email: email, password: password),
+      );
+      if (!mounted) return;
+      if (result != null && result.success) {
         await SessionHelper.save(email, result.token!);
         if (!mounted) return;
         ScaffoldMessenger.of(context)
@@ -279,14 +303,24 @@ class _LoginPageState extends State<LoginPage> {
         return;
       }
       setState(() {
-        _error = result.message == 'Hãy xác thực email trước khi đăng nhập.'
-            ? result.message
-            : 'Email hoặc mật khẩu chưa đúng';
+        _error = switch (result?.message) {
+          null => 'Máy chủ chưa đăng nhập được. Hãy thử lại.',
+          'Hãy xác thực email trước khi đăng nhập.' => result!.message,
+          _ => 'Email hoặc mật khẩu chưa đúng.',
+        };
       });
-    } else {
-      setState(() {
-        _error = "Không đăng nhập được";
-      });
+    } on TimeoutException {
+      if (mounted) {
+        setState(() => _error = 'Máy chủ phản hồi chậm. Hãy thử lại.');
+      }
+    } catch (_) {
+      if (mounted) {
+        setState(
+          () => _error = 'Không hoàn tất được đăng nhập. Hãy kiểm tra kết nối rồi thử lại.',
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _loggingIn = false);
     }
   }
 }
