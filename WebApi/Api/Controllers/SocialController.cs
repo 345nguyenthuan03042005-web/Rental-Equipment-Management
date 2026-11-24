@@ -4,6 +4,7 @@ using System.Text;
 using System.Text.Json;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
+using Microsoft.AspNetCore.WebUtilities;
 using Microsoft.Extensions.Caching.Memory;
 using WebApi.Models;
 using WebApi.Services;
@@ -40,8 +41,39 @@ public class SocialController : BaseController
         string key = Convert.ToHexString(RandomNumberGenerator.GetBytes(32));
         string verifier = RandomNumberGenerator.GetString(
             "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789", 43);
-        cache.Set(state, new SocialAttempt(provider, key, verifier), TimeSpan.FromMinutes(5));
-        return Ok(new { state, key, url = social.GetAuthorizationUrl(provider, state, verifier) });
+        var attempt = new SocialAttempt(provider, key, verifier);
+        string url = social.GetAuthorizationUrl(provider, state, verifier);
+        if (provider == "facebook")
+        {
+            attempt.BrowserTicket = Convert.ToHexString(RandomNumberGenerator.GetBytes(24));
+            var callback = new Uri(configuration["Social:facebook:Callback"]!.Trim());
+            url = QueryHelpers.AddQueryString(new Uri(callback, "/api/social/facebook/open").AbsoluteUri,
+                new Dictionary<string, string?> { ["state"] = state, ["ticket"] = attempt.BrowserTicket });
+        }
+        cache.Set(state, attempt, TimeSpan.FromMinutes(5));
+        return Ok(new { state, key, url });
+    }
+
+    [HttpGet("facebook/open"), EnableRateLimiting("account")]
+    public IActionResult OpenFacebook(string state, string ticket)
+    {
+        Response.Headers["Referrer-Policy"] = "no-referrer";
+        if (!cache.TryGetValue<SocialAttempt>(state, out var attempt) || attempt == null ||
+            attempt.Provider != "facebook" || !social.IsEnabled("facebook"))
+            return BadRequest("Lượt đăng nhập Facebook đã hết hạn. Hãy bắt đầu lại từ ứng dụng.");
+
+        lock (attempt)
+        {
+            if (attempt.Started || attempt.BrowserTicket == null ||
+                !CryptographicOperations.FixedTimeEquals(Encoding.ASCII.GetBytes(ticket),
+                    Encoding.ASCII.GetBytes(attempt.BrowserTicket)))
+                return BadRequest("Trang đăng nhập này đã được mở hoặc không hợp lệ. Hãy quay lại lượt đang mở.");
+
+            attempt.BrowserTicket = null;
+            attempt.BrowserKey = Convert.ToHexString(RandomNumberGenerator.GetBytes(24));
+            RememberBrowser(attempt);
+        }
+        return Redirect(social.GetAuthorizationUrl("facebook", state, attempt.Verifier));
     }
 
     [HttpGet("{provider}/callback"), EnableRateLimiting("account")]
@@ -69,6 +101,7 @@ public class SocialController : BaseController
         }
 
         Member? member = null;
+        bool rememberBrowser = false;
         string? failure = string.IsNullOrEmpty(code)
             ? "Chưa cấp quyền đăng nhập. Hãy quay lại ứng dụng để thử lại."
             : null;
@@ -132,7 +165,11 @@ public class SocialController : BaseController
                 if (attempt.MemberId != null)
                 {
                     attempt.CompletionCode = RandomNumberGenerator.GetInt32(100000000).ToString("D8");
-                    attempt.BrowserKey = Convert.ToHexString(RandomNumberGenerator.GetBytes(24));
+                    if (attempt.BrowserKey == null)
+                    {
+                        attempt.BrowserKey = Convert.ToHexString(RandomNumberGenerator.GetBytes(24));
+                        rememberBrowser = true;
+                    }
                 }
                 else
                 {
@@ -142,12 +179,17 @@ public class SocialController : BaseController
             }
         }
         if (attempt.Failure != null) return CallbackText(attempt.Failure);
+        if (rememberBrowser) RememberBrowser(attempt);
+        return Confirmation(attempt.CompletionCode!);
+    }
+
+    private void RememberBrowser(SocialAttempt attempt)
+    {
         Response.Cookies.Append(CallbackCookie, attempt.BrowserKey!, new CookieOptions
         {
             HttpOnly = true, Secure = true, SameSite = SameSiteMode.Lax,
-            Path = $"/api/social/{provider}/callback", MaxAge = TimeSpan.FromMinutes(5)
+            Path = $"/api/social/{attempt.Provider}/callback", MaxAge = TimeSpan.FromMinutes(5)
         });
-        return Confirmation(attempt.CompletionCode!);
     }
 
     private ContentResult Confirmation(string code) =>
@@ -201,6 +243,7 @@ internal class SocialAttempt(string provider, string key, string verifier)
     public bool Used { get; set; }
     public string? CompletionCode { get; set; }
     public string? BrowserKey { get; set; }
+    public string? BrowserTicket { get; set; }
     public string? Failure { get; set; }
     public int CodeAttempts { get; set; }
     public string? MemberId { get; set; }
