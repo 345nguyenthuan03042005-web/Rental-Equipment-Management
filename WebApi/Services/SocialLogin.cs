@@ -160,7 +160,7 @@ public class SocialLogin
         logger.LogWarning("Social login {Provider} failed during {Step}: HTTP {StatusCode}, code {Code}, subcode {Subcode}, reason {Reason}.",
             provider, step, (int)response.StatusCode, code, subcode, reason);
         body.Dispose();
-        throw new SocialProviderException(step, code);
+        throw new SocialProviderException(step, code, reason);
     }
 
     private static int? ErrorField(JsonElement error, string name) =>
@@ -170,8 +170,9 @@ public class SocialLogin
         error.ValueKind == JsonValueKind.Number && error.TryGetInt32(out int value) ? value : null;
 }
 
-internal sealed class SocialProviderException(string step, int? code) : Exception
+internal sealed class SocialProviderException(string step, int? code, string? reason = null) : Exception
 {
     public string Step { get; } = step;
     public int? Code { get; } = code;
+    public string? Reason { get; } = reason;
 }
