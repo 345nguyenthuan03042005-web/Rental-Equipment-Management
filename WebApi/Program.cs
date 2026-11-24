@@ -21,6 +21,8 @@ builder.Services.AddHttpClient("external", client => client.Timeout = TimeSpan.F
     .RemoveAllLoggers();
 builder.Services.AddScoped<SocialLogin>();
 builder.Services.AddScoped<PaymentGateway>();
+builder.Services.AddScoped<EmailSender>();
+builder.Services.AddScoped<CatalogImages>();
 builder.Services.AddMemoryCache();
 builder.Services.AddRateLimiter(options =>
 {
@@ -81,6 +83,9 @@ app.UseAuthentication();
 app.UseAuthorization();
 app.UseDefaultFiles();
 app.UseStaticFiles();
+app.MapGet("/{directory:regex(^(categories|equipment)$)}/{name:regex(^db-)}",
+    (string directory, string name, CatalogImages images, CancellationToken cancellationToken) =>
+        images.Find(directory, name, cancellationToken));
 app.MapControllers();
 
 app.Run();

@@ -11,6 +11,7 @@ public class RentalEquipmentManagementContext : DbContext
     public DbSet<Member> Members { get; set; }
     public DbSet<EmailCode> EmailCodes { get; set; }
     public DbSet<Equipment> Equipment { get; set; }
+    public DbSet<CatalogImage> CatalogImages { get; set; }
     public DbSet<Cart> Carts { get; set; }
     public DbSet<Status> Statuses { get; set; }
     public DbSet<Rental> Rentals { get; set; }

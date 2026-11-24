@@ -1,16 +1,33 @@
 using System.Net;
+using System.Net.Http.Headers;
 using System.Net.Mail;
 
 namespace WebApi.Services;
 
-public static class EmailSender
+public class EmailSender(IConfiguration configuration, IHttpClientFactory factory)
 {
-    public static bool IsConfigured(IConfiguration configuration) =>
-        !string.IsNullOrWhiteSpace(configuration["Email:Host"]) &&
-        !string.IsNullOrWhiteSpace(configuration["Email:From"]);
+    private string? ApiKey => configuration["Email:ResendApiKey"]?.Trim();
+    private string? From => configuration["Email:From"]?.Trim();
 
-    public static async Task SendCode(IConfiguration configuration, string email, string code, bool reset)
+    public bool IsConfigured => !string.IsNullOrWhiteSpace(From) &&
+        (!string.IsNullOrEmpty(ApiKey) || !string.IsNullOrWhiteSpace(configuration["Email:Host"]));
+
+    public async Task SendCode(string email, string code, bool reset)
     {
+        string subject = reset ? "Đặt lại mật khẩu" : "Xác thực email";
+        string messageText = $"Mã của bạn là {code}. Mã có hiệu lực trong 10 phút.";
+        if (!string.IsNullOrEmpty(ApiKey))
+        {
+            using var request = new HttpRequestMessage(HttpMethod.Post, "https://api.resend.com/emails")
+            {
+                Content = JsonContent.Create(new { from = From, to = new[] { email }, subject, text = messageText })
+            };
+            request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", ApiKey);
+            using var response = await factory.CreateClient("external").SendAsync(request);
+            response.EnsureSuccessStatusCode();
+            return;
+        }
+
         using var client = new SmtpClient(configuration["Email:Host"]!,
             configuration.GetValue("Email:Port", 587))
         {
@@ -20,9 +37,7 @@ public static class EmailSender
         if (!string.IsNullOrEmpty(user))
             client.Credentials = new NetworkCredential(user, configuration["Email:Password"]);
 
-        using var message = new MailMessage(configuration["Email:From"]!, email,
-            reset ? "Đặt lại mật khẩu" : "Xác thực email",
-            $"Mã của bạn là {code}. Mã có hiệu lực trong 10 phút.");
+        using var message = new MailMessage(From!, email, subject, messageText);
         await client.SendMailAsync(message);
     }
 }

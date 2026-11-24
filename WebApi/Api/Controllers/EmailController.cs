@@ -12,21 +12,23 @@ namespace WebApi.Api.Controllers;
 public class EmailController : BaseController
 {
     private readonly IConfiguration configuration;
+    private readonly EmailSender emailSender;
     private readonly ILogger<EmailController> logger;
 
-    public EmailController(IConfiguration configuration, ILogger<EmailController> logger)
+    public EmailController(IConfiguration configuration, EmailSender emailSender, ILogger<EmailController> logger)
     {
         this.configuration = configuration;
+        this.emailSender = emailSender;
         this.logger = logger;
     }
 
     [HttpGet]
-    public object GetOptions() => new { enabled = EmailSender.IsConfigured(configuration) };
+    public object GetOptions() => new { enabled = emailSender.IsConfigured };
 
     [HttpPost("send")]
     public async Task<IActionResult> Send(EmailCodeRequest obj)
     {
-        if (!EmailSender.IsConfigured(configuration)) return StatusCode(503);
+        if (!emailSender.IsConfigured) return StatusCode(503);
         if (obj.Purpose is not ("verify" or "reset")) return BadRequest();
         var member = Provider.Member.GetMemberByEmail(obj.Email.Trim());
         if (member is { IsActive: true } && !member.Email.EndsWith("@example.invalid", StringComparison.Ordinal) &&
@@ -38,11 +40,12 @@ public class EmailController : BaseController
             {
                 try
                 {
-                    await EmailSender.SendCode(configuration, member.Email, code, obj.Purpose == "reset");
+                    await emailSender.SendCode(member.Email, code, obj.Purpose == "reset");
                 }
-                catch (SmtpException ex)
+                catch (Exception ex) when (ex is SmtpException or HttpRequestException or TaskCanceledException or FormatException)
                 {
-                    logger.LogWarning(ex, "Could not send account email");
+                    logger.LogWarning("Could not send account email ({Type}, HTTP {Status}).",
+                        ex.GetType().Name, (ex as HttpRequestException)?.StatusCode);
                 }
             }
         }

@@ -1,6 +1,7 @@
 using System.ComponentModel.DataAnnotations;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Data.SqlClient;
 using WebApi.Models;
 using WebApi.Services;
 
@@ -9,12 +10,12 @@ namespace WebApi.Api.Controllers;
 [ApiController, Route("api/[controller]")]
 public class CategoryController : BaseController
 {
-    private readonly IWebHostEnvironment environment;
+    private readonly CatalogImages images;
     private readonly ILogger<CategoryController> logger;
 
-    public CategoryController(IWebHostEnvironment environment, ILogger<CategoryController> logger)
+    public CategoryController(CatalogImages images, ILogger<CategoryController> logger)
     {
-        this.environment = environment;
+        this.images = images;
         this.logger = logger;
     }
 
@@ -60,7 +61,7 @@ public class CategoryController : BaseController
         {
             try
             {
-                image = await Helper.UploadImage(obj.Image, environment.WebRootPath, "categories", 12);
+                image = await images.Upload(obj.Image, "categories", 12);
             }
             catch (InvalidDataException ex)
             {
@@ -104,9 +105,9 @@ public class CategoryController : BaseController
     {
         try
         {
-            if (!Provider.Category.UsesImage(name)) Helper.DeleteImage(environment.WebRootPath, "categories", name);
+            if (!Provider.Category.UsesImage(name)) images.Delete("categories", name);
         }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or SqlException)
         {
             logger.LogWarning(ex, "Could not remove category image {ImageName}", name);
         }

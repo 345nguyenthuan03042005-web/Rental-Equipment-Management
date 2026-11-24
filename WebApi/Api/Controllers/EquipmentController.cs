@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Authorization;
 using System.ComponentModel.DataAnnotations;
+using Microsoft.Data.SqlClient;
 using WebApi.Models;
 using WebApi.Services;
 
@@ -9,12 +10,12 @@ namespace WebApi.Api.Controllers;
 [ApiController, Route("api/[controller]")]
 public class EquipmentController : BaseController
 {
-    private readonly IWebHostEnvironment environment;
+    private readonly CatalogImages images;
     private readonly ILogger<EquipmentController> logger;
 
-    public EquipmentController(IWebHostEnvironment environment, ILogger<EquipmentController> logger)
+    public EquipmentController(CatalogImages images, ILogger<EquipmentController> logger)
     {
-        this.environment = environment;
+        this.images = images;
         this.logger = logger;
     }
 
@@ -109,12 +110,11 @@ public class EquipmentController : BaseController
     private async Task<ActionResult<int>> Save(EquipmentInput obj, Equipment? current)
     {
         string? newImage = null;
-        string webRoot = environment.WebRootPath;
         if (obj.Image != null)
         {
             try
             {
-                newImage = await Helper.UploadEquipmentImage(obj.Image, webRoot);
+                newImage = await images.Upload(obj.Image, "equipment", 24);
             }
             catch (InvalidDataException ex)
             {
@@ -149,13 +149,9 @@ public class EquipmentController : BaseController
     {
         try
         {
-            if (!Provider.Equipment.UsesImage(name)) Helper.DeleteEquipmentImage(environment.WebRootPath, name);
+            if (!Provider.Equipment.UsesImage(name)) images.Delete("equipment", name);
         }
-        catch (IOException ex)
-        {
-            logger.LogWarning(ex, "Could not remove equipment image {ImageName}", name);
-        }
-        catch (UnauthorizedAccessException ex)
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or SqlException)
         {
             logger.LogWarning(ex, "Could not remove equipment image {ImageName}", name);
         }
