@@ -157,10 +157,14 @@ public class SocialLogin
         int? subcode = ErrorField(error, "error_subcode");
         string? reason = error.ValueKind == JsonValueKind.String ? error.GetString() : null;
         if (reason is not ("invalid_client" or "invalid_grant" or "invalid_request" or "access_denied")) reason = null;
+        if (provider == "facebook" && step == "token exchange" && error.ValueKind == JsonValueKind.Object &&
+            error.TryGetProperty("message", out var message) && message.ValueKind == JsonValueKind.String &&
+            string.Equals(message.GetString()?.TrimEnd('.'), "Error validating client secret", StringComparison.OrdinalIgnoreCase))
+            reason = "invalid_client";
         logger.LogWarning("Social login {Provider} failed during {Step}: HTTP {StatusCode}, code {Code}, subcode {Subcode}, reason {Reason}.",
             provider, step, (int)response.StatusCode, code, subcode, reason);
         body.Dispose();
-        throw new SocialProviderException(step, code, reason);
+        throw new SocialProviderException(step, code, reason, subcode);
     }
 
     private static int? ErrorField(JsonElement error, string name) =>
@@ -170,9 +174,10 @@ public class SocialLogin
         error.ValueKind == JsonValueKind.Number && error.TryGetInt32(out int value) ? value : null;
 }
 
-internal sealed class SocialProviderException(string step, int? code, string? reason = null) : Exception
+internal sealed class SocialProviderException(string step, int? code, string? reason = null, int? subcode = null) : Exception
 {
     public string Step { get; } = step;
     public int? Code { get; } = code;
     public string? Reason { get; } = reason;
+    public int? Subcode { get; } = subcode;
 }

@@ -102,7 +102,10 @@ public class SocialController : BaseController
                 ? "Nhà cung cấp từ chối đổi mã đăng nhập."
                 : "Nhà cung cấp từ chối truy xuất hồ sơ.";
             if (ex.Code is int errorCode) failure += $" Mã lỗi {provider}: {errorCode}.";
-            else if (ex.Reason != null) failure += $" Mã lỗi {provider}: {ex.Reason}.";
+            if (ex.Subcode is int subcode) failure += $" Mã phụ: {subcode}.";
+            if (ex.Reason != null) failure += $" Chi tiết {provider}: {ex.Reason}.";
+            if (provider == "facebook" && ex.Reason == "invalid_client")
+                failure += " Meta báo khóa bí mật ứng dụng không hợp lệ.";
             if (provider == "zalo" && ex.Code == -501)
                 failure += " Zalo giới hạn truy xuất hồ sơ từ máy chủ có IP ngoài Việt Nam.";
         }
