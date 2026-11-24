@@ -14,6 +14,7 @@ namespace WebApi.Api.Controllers;
 [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
 public class SocialController : BaseController
 {
+    private const string CallbackCookie = "rental_social_callback";
     private readonly SocialLogin social;
     private readonly IMemoryCache cache;
     private readonly IConfiguration configuration;
@@ -52,18 +53,31 @@ public class SocialController : BaseController
 
         lock (attempt)
         {
-            if (attempt.Started) return BadRequest("Yêu cầu đăng nhập đã được xử lý.");
+            if (attempt.Started)
+            {
+                if (!attempt.Finished)
+                    return CallbackText("Đang xử lý đăng nhập. Hãy đợi vài giây rồi tải lại trang này.");
+                if (attempt.Failure != null) return CallbackText(attempt.Failure);
+                if (!attempt.Used && attempt.BrowserKey != null &&
+                    Request.Cookies.TryGetValue(CallbackCookie, out var browserKey) &&
+                    CryptographicOperations.FixedTimeEquals(Encoding.ASCII.GetBytes(browserKey),
+                        Encoding.ASCII.GetBytes(attempt.BrowserKey)))
+                    return Confirmation(attempt.CompletionCode!);
+                return CallbackText("Mã đã được hiển thị ở lần mở đầu tiên. Nếu bạn chưa thấy mã, hãy bắt đầu lượt đăng nhập mới từ ứng dụng.");
+            }
             attempt.Started = true;
         }
 
         Member? member = null;
-        string? failure = null;
+        string? failure = string.IsNullOrEmpty(code)
+            ? "Chưa cấp quyền đăng nhập. Hãy quay lại ứng dụng để thử lại."
+            : null;
         try
         {
             if (!string.IsNullOrEmpty(code))
             {
                 var profile = await social.GetProfile(provider, code, attempt.Verifier);
-                if (string.IsNullOrWhiteSpace(profile.Id)) return BadRequest();
+                if (string.IsNullOrWhiteSpace(profile.Id)) throw new InvalidOperationException("Missing provider profile ID.");
                 string id = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(
                     $"social:{provider}:{profile.Id}")))[..32].ToLowerInvariant();
                 member = Provider.Member.GetMember(id);
@@ -113,19 +127,30 @@ public class SocialController : BaseController
             {
                 attempt.MemberId = member is { IsActive: true } ? member.Id : null;
                 if (attempt.MemberId != null)
+                {
                     attempt.CompletionCode = RandomNumberGenerator.GetInt32(100000000).ToString("D8");
+                    attempt.BrowserKey = Convert.ToHexString(RandomNumberGenerator.GetBytes(24));
+                }
+                else
+                {
+                    attempt.Failure = failure ?? "Đăng nhập chưa thành công. Hãy quay lại ứng dụng để thử lại.";
+                }
                 attempt.Finished = true;
             }
         }
-        if (string.IsNullOrEmpty(code))
+        if (attempt.Failure != null) return CallbackText(attempt.Failure);
+        Response.Cookies.Append(CallbackCookie, attempt.BrowserKey!, new CookieOptions
         {
-            logger.LogInformation("Social login {Provider} returned without an authorization code.", provider);
-            return Content("Chưa cấp quyền đăng nhập. Hãy quay lại ứng dụng để thử lại.", "text/plain; charset=utf-8");
-        }
-        return Content(attempt.MemberId == null ?
-            $"{failure ?? "Đăng nhập chưa thành công."} Hãy quay lại ứng dụng." :
-            $"Nhập mã {attempt.CompletionCode} vào ứng dụng để hoàn tất đăng nhập.", "text/plain; charset=utf-8");
+            HttpOnly = true, Secure = true, SameSite = SameSiteMode.Lax,
+            Path = $"/api/social/{provider}/callback", MaxAge = TimeSpan.FromMinutes(5)
+        });
+        return Confirmation(attempt.CompletionCode!);
     }
+
+    private ContentResult Confirmation(string code) =>
+        CallbackText($"Nhập mã {code} vào ứng dụng để hoàn tất đăng nhập.");
+
+    private ContentResult CallbackText(string message) => Content(message, "text/plain; charset=utf-8");
 
     [HttpPost("result")]
     public IActionResult Result(SocialResultInput obj)
@@ -172,6 +197,8 @@ internal class SocialAttempt(string provider, string key, string verifier)
     public bool Finished { get; set; }
     public bool Used { get; set; }
     public string? CompletionCode { get; set; }
+    public string? BrowserKey { get; set; }
+    public string? Failure { get; set; }
     public int CodeAttempts { get; set; }
     public string? MemberId { get; set; }
 }
